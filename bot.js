@@ -3,7 +3,13 @@
  * Запуск: node bot.js
  */
 
-const BOT_TOKEN = '8290129460:AAEcpXwZpQwpX6D1kXniP8Na_wdPZo_R1UE';
+require('dotenv').config({ path: '.env' });
+
+const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+if (!BOT_TOKEN) {
+  console.error('❌ Токен бота не найден! Добавьте BOT_TOKEN в .env');
+  process.exit(1);
+}
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 console.log('🤖 FindOrigin Bot');
