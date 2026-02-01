@@ -21,8 +21,10 @@ try {
   console.error('Ошибка чтения .env:', e.message);
 }
 
-const BOT_TOKEN = env.BOT_TOKEN;
-const OPENAI_API_KEY = env.OPENAI_API_KEY;
+const BOT_TOKEN = env.BOT_TOKEN || env.TELEGRAM_BOT_TOKEN;
+const OPENAI_API_KEY = env.OPENAI_API_KEY || env.OPENROUTER_API_KEY;
+const OPENAI_BASE_URL = env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+const OPENAI_MODEL = env.OPENAI_MODEL || 'gpt-4o-mini';
 const GOOGLE_API_KEY = env.GOOGLE_API_KEY;
 const GOOGLE_SEARCH_ENGINE_ID = env.GOOGLE_SEARCH_ENGINE_ID;
 
@@ -72,14 +74,14 @@ async function generateSearchQueries(text) {
   }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: OPENAI_MODEL,
         messages: [
           {
             role: 'system',
@@ -120,14 +122,14 @@ async function analyzeWithAI(originalText, searchResults) {
       `${i + 1}. "${r.title}" - ${r.link}\n   ${r.snippet || ''}`
     ).join('\n\n');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: OPENAI_MODEL,
         messages: [
           {
             role: 'system',
