@@ -1,14 +1,31 @@
 import OpenAI from 'openai';
 import { SearchResult, AIAnalysisResult } from '@/types';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Ленивая инициализация клиента OpenAI
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI | null {
+  if (!process.env.OPENAI_API_KEY) {
+    return null;
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiClient;
+}
 
 /**
  * Генерирует поисковые запросы из текста с помощью AI
  */
 export async function generateSearchQueries(text: string): Promise<string[]> {
+  const openai = getOpenAI();
+  if (!openai) {
+    console.warn('OpenAI API key not set, using fallback');
+    return [text.substring(0, 100)];
+  }
+
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -51,6 +68,23 @@ export async function analyzeSourcesWithAI(
       sources: [],
       confidence: 0,
       explanation: 'Источники не найдены.',
+    };
+  }
+
+  const openai = getOpenAI();
+  if (!openai) {
+    // Fallback без AI
+    return {
+      sources: searchResults.slice(0, 3).map(r => ({
+        url: r.link,
+        title: r.title,
+        snippet: r.snippet || '',
+        relevance: 50,
+        isLikelyOriginal: false,
+        reason: '',
+      })),
+      confidence: 30,
+      explanation: 'AI-анализ недоступен (нет API ключа).',
     };
   }
 
