@@ -1,6 +1,53 @@
 import OpenAI from 'openai';
 import { SearchResult, AIAnalysisResult } from '@/types';
 
+/** Извлекает строку из возможных markdown-блоков и парсит JSON массив; при ошибке — fallback */
+function parseJsonArray(content: string): string[] {
+  const raw = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    const arrMatch = raw.match(/\[[\s\S]*/);
+    if (arrMatch) {
+      const fixed = arrMatch[0].replace(/,(\s*[}\]])/g, '$1');
+      let closed = fixed;
+      const openBrackets = (fixed.match(/\[/g) || []).length - (fixed.match(/\]/g) || []).length;
+      if (openBrackets > 0) closed = fixed + ']'.repeat(openBrackets);
+      try {
+        const parsed = JSON.parse(closed);
+        return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+      } catch {
+        const quoted = [...raw.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g)].map(m => m[1].replace(/\\"/g, '"'));
+        return quoted.length > 0 ? quoted : [];
+      }
+    }
+    const quoted = [...raw.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g)].map(m => m[1].replace(/\\"/g, '"'));
+    return quoted.length > 0 ? quoted : [];
+  }
+}
+
+/** Безопасный парсинг JSON объекта; при ошибке возвращает null */
+function parseJsonObject<T = unknown>(content: string): T | null {
+  const raw = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const objMatch = raw.match(/\{[\s\S]*/);
+    if (objMatch) {
+      let closed = objMatch[0];
+      const open = (closed.match(/\{/g) || []).length - (closed.match(/\}/g) || []).length;
+      if (open > 0) closed += '}'.repeat(open);
+      try {
+        return JSON.parse(closed) as T;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
 // Ленивая инициализация клиента OpenAI
 let openaiClient: OpenAI | null = null;
 
@@ -53,8 +100,8 @@ export async function generateSearchQueries(text: string): Promise<string[]> {
     });
 
     const content = response.choices[0]?.message?.content || '[]';
-    const queries = JSON.parse(content);
-    return Array.isArray(queries) ? queries.slice(0, 3) : [];
+    const queries = parseJsonArray(content);
+    return queries.length > 0 ? queries.slice(0, 3) : [text.substring(0, 100)];
   } catch (error) {
     console.error('Error generating search queries:', error);
     return [text.substring(0, 100)];
@@ -135,7 +182,11 @@ export async function analyzeSourcesWithAI(
     });
 
     const content = response.choices[0]?.message?.content || '{}';
-    const analysis = JSON.parse(content);
+    const analysis = parseJsonObject<{ sources?: Array<{ index: number; relevance?: number; isLikelyOriginal?: boolean; reason?: string }>; confidence?: number; explanation?: string }>(content);
+
+    if (!analysis) {
+      throw new Error('Invalid AI response format');
+    }
 
     const analyzedSources = searchResults.slice(0, 5).map((result, index) => {
       const sourceAnalysis = analysis.sources?.find((s: any) => s.index === index + 1);

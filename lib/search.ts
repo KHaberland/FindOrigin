@@ -44,19 +44,26 @@ async function searchGoogle(query: string): Promise<SearchResult[]> {
 }
 
 /**
- * Выполняет поиск через DuckDuckGo (без API)
+ * Выполняет поиск через DuckDuckGo (без API).
+ * На серверах (Vercel и др.) часто возвращается 403 — для стабильного поиска настройте GOOGLE_API_KEY.
  */
 async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
   try {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
       }
     });
     
     if (!response.ok) {
-      console.error('DuckDuckGo error:', response.status);
+      if (response.status === 403) {
+        console.warn('DuckDuckGo 403 (often blocks server IPs). Set GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID for reliable search.');
+      } else {
+        console.error('DuckDuckGo error:', response.status);
+      }
       return [];
     }
 
