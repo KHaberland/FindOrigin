@@ -18,11 +18,11 @@ function parseJsonArray(content: string): string[] {
         const parsed = JSON.parse(closed);
         return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
       } catch {
-        const quoted = [...raw.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g)].map(m => m[1].replace(/\\"/g, '"'));
+        const quoted = Array.from(raw.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g), m => m[1].replace(/\\"/g, '"'));
         return quoted.length > 0 ? quoted : [];
       }
     }
-    const quoted = [...raw.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g)].map(m => m[1].replace(/\\"/g, '"'));
+    const quoted = Array.from(raw.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g), m => m[1].replace(/\\"/g, '"'));
     return quoted.length > 0 ? quoted : [];
   }
 }
