@@ -1,5 +1,33 @@
 import { SearchResult } from '@/types';
 
+/** TTL кэша поиска (мс), 5 минут */
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface CacheEntry {
+  results: SearchResult[];
+  expiresAt: number;
+}
+
+const searchCache = new Map<string, CacheEntry>();
+
+function getCachedResults(query: string): SearchResult[] | null {
+  const key = query.trim().toLowerCase();
+  const entry = searchCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    if (entry) searchCache.delete(key);
+    return null;
+  }
+  return entry.results;
+}
+
+function setCachedResults(query: string, results: SearchResult[]): void {
+  const key = query.trim().toLowerCase();
+  searchCache.set(key, {
+    results,
+    expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
+  });
+}
+
 /**
  * Выполняет поиск через Google Custom Search API
  */
@@ -103,9 +131,14 @@ async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
 }
 
 /**
- * Выполняет поиск - сначала Google, потом DuckDuckGo как fallback
+ * Выполняет поиск - сначала кэш, затем Google, потом DuckDuckGo как fallback
  */
 async function search(query: string): Promise<SearchResult[]> {
+  const cached = getCachedResults(query);
+  if (cached && cached.length > 0) {
+    return cached;
+  }
+
   // Пробуем Google
   let results = await searchGoogle(query);
   
@@ -115,6 +148,9 @@ async function search(query: string): Promise<SearchResult[]> {
     results = await searchDuckDuckGo(query);
   }
   
+  if (results.length > 0) {
+    setCachedResults(query, results);
+  }
   return results;
 }
 

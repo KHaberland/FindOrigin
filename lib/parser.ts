@@ -51,10 +51,13 @@ function isOnlyUrl(text: string): boolean {
  */
 export function cleanText(text: string): string {
   return text
-    .replace(/\s+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+/g, ' ')
     .trim();
 }
+
+/** Таймаут запроса к embed t.me (мс) */
+const TELEGRAM_EMBED_TIMEOUT_MS = 8000;
 
 /**
  * Извлекает текст из Telegram-поста через embed
@@ -66,12 +69,17 @@ async function fetchTelegramPostText(
 ): Promise<string | null> {
   try {
     const embedUrl = `https://t.me/${channel}/${messageId}?embed=1`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TELEGRAM_EMBED_TIMEOUT_MS);
     
     const response = await fetch(embedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error(`Failed to fetch Telegram post: ${response.status}`);
@@ -83,7 +91,11 @@ async function fetchTelegramPostText(
     return text;
 
   } catch (error) {
-    console.error('Error fetching Telegram post:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('Telegram embed fetch timeout');
+    } else {
+      console.error('Error fetching Telegram post:', error);
+    }
     return null;
   }
 }
