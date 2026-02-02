@@ -30,14 +30,21 @@ export async function POST(request: NextRequest) {
       const command = extractCommand(text);
       
       switch (command) {
-        case 'start':
+        case 'start': {
+          const modelEnv = (process.env.OPENAI_MODEL || process.env.OPENROUTER_MODEL || '').trim();
+          let modelName = 'AI';
+          if (modelEnv) {
+            if (modelEnv.toLowerCase().includes('nvidia')) modelName = 'Nvidia';
+            else if (!modelEnv.toLowerCase().includes('gpt-4o-mini')) modelName = modelEnv;
+          }
           await sendMessage(
             chatId,
             '👋 Привет! Я бот <b>FindOrigin</b> с AI.\n\n' +
-            'Я помогу найти первоисточник информации с помощью GPT-4o-mini.\n\n' +
+            `Я помогу найти первоисточник информации с помощью ${modelName}.\n\n` +
             '📝 Отправь мне текст для проверки!'
           );
           return NextResponse.json({ ok: true });
+        }
 
         case 'help':
           await sendMessage(

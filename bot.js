@@ -1,6 +1,6 @@
 /**
  * FindOrigin Bot - Локальный режим с AI (polling)
- * Использует OpenAI GPT-4o-mini и Google Search API
+ * Поддерживает OpenAI и OpenRouter (модели через openrouter.ai)
  */
 
 const fs = require('fs');
@@ -21,12 +21,13 @@ try {
   console.error('Ошибка чтения .env:', e.message);
 }
 
-const BOT_TOKEN = env.BOT_TOKEN || env.TELEGRAM_BOT_TOKEN;
-const OPENAI_API_KEY = env.OPENAI_API_KEY || env.OPENROUTER_API_KEY;
-const OPENAI_BASE_URL = env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-const OPENAI_MODEL = env.OPENAI_MODEL || 'gpt-4o-mini';
-const GOOGLE_API_KEY = env.GOOGLE_API_KEY;
-const GOOGLE_SEARCH_ENGINE_ID = env.GOOGLE_SEARCH_ENGINE_ID;
+const BOT_TOKEN = (env.BOT_TOKEN || env.TELEGRAM_BOT_TOKEN || '').trim();
+const OPENAI_API_KEY = (env.OPENAI_API_KEY || env.OPENROUTER_API_KEY || '').trim();
+const OPENAI_BASE_URL = (env.OPENAI_BASE_URL || '').trim() ||
+  (env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
+const OPENAI_MODEL = (env.OPENAI_MODEL || env.OPENROUTER_MODEL || 'gpt-4o-mini').trim();
+const GOOGLE_API_KEY = (env.GOOGLE_API_KEY || '').trim();
+const GOOGLE_SEARCH_ENGINE_ID = (env.GOOGLE_SEARCH_ENGINE_ID || '').trim();
 
 if (!BOT_TOKEN) {
   console.error('❌ BOT_TOKEN не найден в .env');
@@ -37,7 +38,7 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 console.log('🤖 FindOrigin Bot (AI Mode)');
 console.log('===========================');
-console.log(`OpenAI: ${OPENAI_API_KEY ? '✅' : '❌'}`);
+console.log(`AI (OpenAI/OpenRouter): ${OPENAI_API_KEY ? '✅' : '❌'} ${OPENAI_BASE_URL.includes('openrouter') ? '(OpenRouter)' : ''}`);
 console.log(`Google Search: ${GOOGLE_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? '✅' : '❌'}`);
 console.log('');
 
@@ -97,11 +98,15 @@ async function generateSearchQueries(text) {
     });
 
     const data = await response.json();
+    if (data.error) {
+      console.error('AI API error:', data.error.message || data.error);
+      return [text.substring(0, 100)];
+    }
     const content = data.choices?.[0]?.message?.content || '[]';
     const queries = JSON.parse(content);
     return Array.isArray(queries) ? queries.slice(0, 3) : [text.substring(0, 100)];
   } catch (e) {
-    console.error('OpenAI error:', e.message);
+    console.error('AI error:', e.message);
     return [text.substring(0, 100)];
   }
 }
@@ -152,6 +157,10 @@ async function analyzeWithAI(originalText, searchResults) {
     });
 
     const data = await response.json();
+    if (data.error) {
+      console.error('AI API error:', data.error.message || data.error);
+      throw new Error(data.error.message || 'AI API error');
+    }
     const content = data.choices?.[0]?.message?.content || '{}';
     const analysis = JSON.parse(content);
 
@@ -242,9 +251,9 @@ async function searchDuckDuckGo(query) {
 
 async function processMessage(chatId, text) {
   if (text === '/start') {
-    await sendMessage(chatId, 
+    await sendMessage(chatId,
       '👋 Привет! Я <b>FindOrigin</b> с AI.\n\n' +
-      'Отправь мне текст — я найду первоисточник с помощью GPT-4o-mini и Google Search!'
+      'Отправь мне текст — я найду первоисточник с помощью AI и поиска в интернете!'
     );
     return;
   }

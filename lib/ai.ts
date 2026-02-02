@@ -5,14 +5,16 @@ import { SearchResult, AIAnalysisResult } from '@/types';
 let openaiClient: OpenAI | null = null;
 
 function getOpenAI(): OpenAI | null {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+  const apiKey = (process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)?.trim();
   if (!apiKey) {
     return null;
   }
   if (!openaiClient) {
+    const baseURL = (process.env.OPENAI_BASE_URL || '').trim()
+      || (process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
     openaiClient = new OpenAI({
       apiKey: apiKey,
-      baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      baseURL: baseURL,
     });
   }
   return openaiClient;
@@ -29,7 +31,7 @@ export async function generateSearchQueries(text: string): Promise<string[]> {
   }
 
   try {
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = (process.env.OPENAI_MODEL || process.env.OPENROUTER_MODEL || 'gpt-4o-mini').trim();
     const response = await openai.chat.completions.create({
       model: model,
       messages: [
@@ -96,7 +98,7 @@ export async function analyzeSourcesWithAI(
       `${i + 1}. "${r.title}" - ${r.link}\n   ${r.snippet || ''}`
     ).join('\n\n');
 
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = (process.env.OPENAI_MODEL || process.env.OPENROUTER_MODEL || 'gpt-4o-mini').trim();
     const response = await openai.chat.completions.create({
       model: model,
       messages: [
