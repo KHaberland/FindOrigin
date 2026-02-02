@@ -11,6 +11,9 @@ import { parseInput } from '@/lib/parser';
 import { generateSearchQueries, analyzeSourcesWithAI } from '@/lib/ai';
 import { searchMultipleQueries } from '@/lib/search';
 
+/** Лимит времени выполнения (сек). На Vercel Hobby макс 10, на Pro — до 300. Telegram ждёт ответ webhook до 60 сек. */
+export const maxDuration = 60;
+
 /**
  * Обработчик webhook от Telegram
  */
@@ -69,12 +72,10 @@ export async function POST(request: NextRequest) {
     // Отправляем индикатор "печатает..."
     await sendTypingAction(chatId);
 
-    // Обработка текста - запускаем асинхронно
-    processMessage(chatId, text).catch(error => {
-      console.error('Error processing message:', error);
-    });
+    // Ждём полной обработки и отправки ответа пользователю, затем возвращаем 200.
+    // Иначе на Vercel функция завершится и processMessage оборвётся — пользователь не получит результат.
+    await processMessage(chatId, text);
 
-    // Возвращаем 200 OK сразу
     return NextResponse.json({ ok: true });
 
   } catch (error) {
@@ -116,6 +117,7 @@ async function processMessage(chatId: number, text: string): Promise<void> {
 
     // 2. Генерируем поисковые запросы через AI
     const searchQueries = await generateSearchQueries(parsedInput.text);
+    console.log('[Webhook] Поисковые запросы:', searchQueries);
 
     if (searchQueries.length === 0) {
       await sendMessage(
@@ -130,11 +132,13 @@ async function processMessage(chatId: number, text: string): Promise<void> {
 
     // 3. Ищем источники
     const searchResults = await searchMultipleQueries(searchQueries);
+    console.log('[Webhook] Найдено результатов:', searchResults.length);
 
     if (searchResults.length === 0) {
       await sendMessage(
         chatId,
-        '😔 К сожалению, не удалось найти возможные источники.'
+        '😔 К сожалению, не удалось найти возможные источники.\n\n' +
+        '💡 Проверьте в Vercel: заданы ли GOOGLE_API_KEY и GOOGLE_SEARCH_ENGINE_ID (см. README). Без них поиск на сервере часто не работает.'
       );
       return;
     }

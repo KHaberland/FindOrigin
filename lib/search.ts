@@ -32,10 +32,11 @@ function setCachedResults(query: string, results: SearchResult[]): void {
  * Выполняет поиск через Google Custom Search API
  */
 async function searchGoogle(query: string): Promise<SearchResult[]> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+  const apiKey = process.env.GOOGLE_API_KEY?.trim();
+  const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID?.trim();
 
   if (!apiKey || !searchEngineId) {
+    console.warn('[Search] Google: не заданы GOOGLE_API_KEY или GOOGLE_SEARCH_ENGINE_ID — поиск не выполняется. Задайте их в Vercel (Environment Variables).');
     return [];
   }
 
@@ -47,15 +48,21 @@ async function searchGoogle(query: string): Promise<SearchResult[]> {
     url.searchParams.set('num', '10');
 
     const response = await fetch(url.toString());
-    
+    const data = await response.json();
+
     if (!response.ok) {
-      console.error('Google Search API error:', response.status);
+      const errMsg = data?.error?.message || data?.error?.errors?.[0]?.message || response.statusText;
+      console.error('[Search] Google API error:', response.status, errMsg);
       return [];
     }
 
-    const data = await response.json();
-    
-    if (!data.items) {
+    if (data.error) {
+      console.error('[Search] Google API error in body:', data.error.message || data.error);
+      return [];
+    }
+
+    if (!data.items || !Array.isArray(data.items)) {
+      console.warn('[Search] Google: пустой ответ (items нет). Проверьте GOOGLE_SEARCH_ENGINE_ID (cx) — он должен быть из Programmable Search Engine.');
       return [];
     }
 
@@ -141,13 +148,16 @@ async function search(query: string): Promise<SearchResult[]> {
 
   // Пробуем Google
   let results = await searchGoogle(query);
-  
-  // Если Google не сработал - используем DuckDuckGo
+
+  // Если Google не сработал — пробуем DuckDuckGo (на Vercel часто 403)
   if (results.length === 0) {
-    console.log('Using DuckDuckGo fallback');
+    console.warn('[Search] DuckDuckGo fallback (Google не вернул результатов)');
     results = await searchDuckDuckGo(query);
+    if (results.length === 0) {
+      console.warn('[Search] DuckDuckGo тоже не вернул результатов. Для стабильной работы настройте Google Custom Search.');
+    }
   }
-  
+
   if (results.length > 0) {
     setCachedResults(query, results);
   }
