@@ -29,14 +29,58 @@ function setCachedResults(query: string, results: SearchResult[]): void {
 }
 
 /**
- * Выполняет поиск через Google Custom Search API
+ * Выполняет поиск через SerpAPI (Google по всему интернету)
+ */
+async function searchSerpAPI(query: string): Promise<SearchResult[]> {
+  const apiKey = process.env.SERPAPI_KEY?.trim();
+
+  if (!apiKey) {
+    console.warn('[Search] SerpAPI: не задан SERPAPI_KEY — пропускаем.');
+    return [];
+  }
+
+  try {
+    const url = new URL('https://serpapi.com/search.json');
+    url.searchParams.set('engine', 'google');
+    url.searchParams.set('q', query);
+    url.searchParams.set('api_key', apiKey);
+    url.searchParams.set('num', '10');
+    url.searchParams.set('hl', 'ru');
+    url.searchParams.set('gl', 'ru');
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (!response.ok || data.error) {
+      console.error('[Search] SerpAPI error:', data.error || response.statusText);
+      return [];
+    }
+
+    if (!data.organic_results || !Array.isArray(data.organic_results)) {
+      console.warn('[Search] SerpAPI: пустой ответ (нет organic_results).');
+      return [];
+    }
+
+    return data.organic_results.map((item: any) => ({
+      title: item.title || '',
+      link: item.link || '',
+      snippet: item.snippet || '',
+      source: extractDomain(item.link),
+    }));
+  } catch (error) {
+    console.error('SerpAPI error:', error);
+    return [];
+  }
+}
+
+/**
+ * Выполняет поиск через Google Custom Search API (запасной)
  */
 async function searchGoogle(query: string): Promise<SearchResult[]> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
   const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID?.trim();
 
   if (!apiKey || !searchEngineId) {
-    console.warn('[Search] Google: не заданы GOOGLE_API_KEY или GOOGLE_SEARCH_ENGINE_ID — поиск не выполняется. Задайте их в Vercel (Environment Variables).');
     return [];
   }
 
@@ -62,7 +106,6 @@ async function searchGoogle(query: string): Promise<SearchResult[]> {
     }
 
     if (!data.items || !Array.isArray(data.items)) {
-      console.warn('[Search] Google: пустой ответ (items нет). Проверьте GOOGLE_SEARCH_ENGINE_ID (cx) — он должен быть из Programmable Search Engine.');
       return [];
     }
 
@@ -138,7 +181,7 @@ async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
 }
 
 /**
- * Выполняет поиск - сначала кэш, затем Google, потом DuckDuckGo как fallback
+ * Выполняет поиск - сначала кэш, затем SerpAPI, Google CSE, потом DuckDuckGo как fallback
  */
 async function search(query: string): Promise<SearchResult[]> {
   const cached = getCachedResults(query);
@@ -146,15 +189,21 @@ async function search(query: string): Promise<SearchResult[]> {
     return cached;
   }
 
-  // Пробуем Google
-  let results = await searchGoogle(query);
+  // 1. Пробуем SerpAPI (поиск по всему интернету)
+  let results = await searchSerpAPI(query);
 
-  // Если Google не сработал — пробуем DuckDuckGo (на Vercel часто 403)
+  // 2. Если SerpAPI не сработал — пробуем Google CSE
   if (results.length === 0) {
-    console.warn('[Search] DuckDuckGo fallback (Google не вернул результатов)');
+    console.warn('[Search] SerpAPI не вернул результатов, пробуем Google CSE');
+    results = await searchGoogle(query);
+  }
+
+  // 3. Если Google CSE не сработал — пробуем DuckDuckGo (на Vercel часто 403)
+  if (results.length === 0) {
+    console.warn('[Search] DuckDuckGo fallback');
     results = await searchDuckDuckGo(query);
     if (results.length === 0) {
-      console.warn('[Search] DuckDuckGo тоже не вернул результатов. Для стабильной работы настройте Google Custom Search.');
+      console.warn('[Search] Все методы поиска не вернули результатов. Настройте SERPAPI_KEY в Vercel.');
     }
   }
 

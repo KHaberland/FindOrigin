@@ -26,6 +26,7 @@ const OPENAI_API_KEY = (env.OPENAI_API_KEY || env.OPENROUTER_API_KEY || '').trim
 const OPENAI_BASE_URL = (env.OPENAI_BASE_URL || '').trim() ||
   (env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
 const OPENAI_MODEL = (env.OPENAI_MODEL || env.OPENROUTER_MODEL || 'gpt-4o-mini').trim();
+const SERPAPI_KEY = (env.SERPAPI_KEY || '').trim();
 const GOOGLE_API_KEY = (env.GOOGLE_API_KEY || '').trim();
 const GOOGLE_SEARCH_ENGINE_ID = (env.GOOGLE_SEARCH_ENGINE_ID || '').trim();
 
@@ -39,7 +40,8 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 console.log('🤖 FindOrigin Bot (AI Mode)');
 console.log('===========================');
 console.log(`AI (OpenAI/OpenRouter): ${OPENAI_API_KEY ? '✅' : '❌'} ${OPENAI_BASE_URL.includes('openrouter') ? '(OpenRouter)' : ''}`);
-console.log(`Google Search: ${GOOGLE_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? '✅' : '❌'}`);
+console.log(`SerpAPI (Google): ${SERPAPI_KEY ? '✅' : '❌'}`);
+console.log(`Google CSE (запасной): ${GOOGLE_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? '✅' : '❌'}`);
 console.log('');
 
 let offset = 0;
@@ -195,11 +197,41 @@ async function analyzeWithAI(originalText, searchResults) {
   }
 }
 
-// ==================== Google Search ====================
+// ==================== SerpAPI Search ====================
+
+async function searchSerpAPI(query) {
+  if (!SERPAPI_KEY) {
+    console.log('   SerpAPI не настроен, используем DuckDuckGo');
+    return searchDuckDuckGo(query);
+  }
+
+  try {
+    const url = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(query)}&api_key=${SERPAPI_KEY}&num=10&hl=ru&gl=ru`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.error) {
+      console.error('SerpAPI error:', data.error);
+      return searchDuckDuckGo(query);
+    }
+
+    if (!data.organic_results) return [];
+
+    return data.organic_results.map(item => ({
+      title: item.title || '',
+      link: item.link || '',
+      snippet: item.snippet || ''
+    }));
+  } catch (e) {
+    console.error('SerpAPI error:', e.message);
+    return searchDuckDuckGo(query);
+  }
+}
+
+// ==================== Google Search (запасной) ====================
 
 async function searchGoogle(query) {
   if (!GOOGLE_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
-    console.log('   Google Search не настроен, используем DuckDuckGo');
     return searchDuckDuckGo(query);
   }
 
@@ -293,11 +325,11 @@ async function processMessage(chatId, text) {
 
   await sendTyping(chatId);
 
-  // 2. Поиск
-  console.log('   🔎 Поиск в интернете...');
+  // 2. Поиск через SerpAPI (Google)
+  console.log('   🔎 Поиск в интернете (SerpAPI)...');
   let allResults = [];
   for (const query of queries) {
-    const results = await searchGoogle(query);
+    const results = await searchSerpAPI(query);
     allResults.push(...results);
     await new Promise(r => setTimeout(r, 300));
   }
