@@ -199,6 +199,9 @@ async function analyzeWithAI(originalText, searchResults) {
 
 // ==================== SerpAPI Search ====================
 
+// Специальный объект для ошибки лимита
+const SERPAPI_LIMIT_ERROR = { isLimitError: true };
+
 async function searchSerpAPI(query) {
   if (!SERPAPI_KEY) {
     console.log('   SerpAPI не настроен, используем DuckDuckGo');
@@ -209,6 +212,18 @@ async function searchSerpAPI(query) {
     const url = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(query)}&api_key=${SERPAPI_KEY}&num=10&hl=ru&gl=ru`;
     const response = await fetch(url);
     const data = await response.json();
+
+    // Проверяем на ошибку лимита
+    if (response.status === 429 || 
+        (data.error && (
+          data.error.includes('run out of searches') ||
+          data.error.includes('limit') ||
+          data.error.includes('quota') ||
+          data.error.includes('exceeded')
+        ))) {
+      console.error('SerpAPI: лимит запросов исчерпан!');
+      return SERPAPI_LIMIT_ERROR;
+    }
 
     if (data.error) {
       console.error('SerpAPI error:', data.error);
@@ -328,10 +343,31 @@ async function processMessage(chatId, text) {
   // 2. Поиск через SerpAPI (Google)
   console.log('   🔎 Поиск в интернете (SerpAPI)...');
   let allResults = [];
+  let limitExceeded = false;
+  
   for (const query of queries) {
     const results = await searchSerpAPI(query);
-    allResults.push(...results);
+    
+    // Проверяем на ошибку лимита
+    if (results && results.isLimitError) {
+      limitExceeded = true;
+      break;
+    }
+    
+    if (Array.isArray(results)) {
+      allResults.push(...results);
+    }
     await new Promise(r => setTimeout(r, 300));
+  }
+
+  // Если лимит исчерпан — сообщаем пользователю
+  if (limitExceeded) {
+    await sendMessage(chatId, 
+      '⚠️ <b>Лимит поиска исчерпан!</b>\n\n' +
+      '🔒 Бесплатные запросы SerpAPI в этом месяце закончились (250 запросов/месяц).\n\n' +
+      '💡 Лимит обновится в начале следующего месяца.'
+    );
+    return;
   }
 
   // Убираем дубликаты

@@ -3,6 +3,14 @@ import { SearchResult } from '@/types';
 /** TTL кэша поиска (мс), 5 минут */
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
+/** Ошибка исчерпания лимита SerpAPI */
+export class SerpAPILimitError extends Error {
+  constructor() {
+    super('SerpAPI limit exceeded');
+    this.name = 'SerpAPILimitError';
+  }
+}
+
 interface CacheEntry {
   results: SearchResult[];
   expiresAt: number;
@@ -30,6 +38,7 @@ function setCachedResults(query: string, results: SearchResult[]): void {
 
 /**
  * Выполняет поиск через SerpAPI (Google по всему интернету)
+ * @throws {SerpAPILimitError} если исчерпан лимит запросов
  */
 async function searchSerpAPI(query: string): Promise<SearchResult[]> {
   const apiKey = process.env.SERPAPI_KEY?.trim();
@@ -51,6 +60,18 @@ async function searchSerpAPI(query: string): Promise<SearchResult[]> {
     const response = await fetch(url.toString());
     const data = await response.json();
 
+    // Проверяем на ошибку лимита
+    if (response.status === 429 || 
+        (data.error && (
+          data.error.includes('run out of searches') ||
+          data.error.includes('limit') ||
+          data.error.includes('quota') ||
+          data.error.includes('exceeded')
+        ))) {
+      console.error('[Search] SerpAPI: лимит запросов исчерпан!');
+      throw new SerpAPILimitError();
+    }
+
     if (!response.ok || data.error) {
       console.error('[Search] SerpAPI error:', data.error || response.statusText);
       return [];
@@ -68,6 +89,10 @@ async function searchSerpAPI(query: string): Promise<SearchResult[]> {
       source: extractDomain(item.link),
     }));
   } catch (error) {
+    // Пробрасываем ошибку лимита дальше
+    if (error instanceof SerpAPILimitError) {
+      throw error;
+    }
     console.error('SerpAPI error:', error);
     return [];
   }
@@ -182,6 +207,7 @@ async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
 
 /**
  * Выполняет поиск - сначала кэш, затем SerpAPI, Google CSE, потом DuckDuckGo как fallback
+ * @throws {SerpAPILimitError} если исчерпан лимит SerpAPI
  */
 async function search(query: string): Promise<SearchResult[]> {
   const cached = getCachedResults(query);
@@ -190,6 +216,7 @@ async function search(query: string): Promise<SearchResult[]> {
   }
 
   // 1. Пробуем SerpAPI (поиск по всему интернету)
+  // Ошибка лимита пробрасывается наверх
   let results = await searchSerpAPI(query);
 
   // 2. Если SerpAPI не сработал — пробуем Google CSE
@@ -215,11 +242,13 @@ async function search(query: string): Promise<SearchResult[]> {
 
 /**
  * Выполняет поиск по нескольким запросам
+ * @throws {SerpAPILimitError} если исчерпан лимит SerpAPI
  */
 export async function searchMultipleQueries(queries: string[]): Promise<SearchResult[]> {
   const allResults: SearchResult[] = [];
   
   for (const query of queries.slice(0, 3)) {
+    // Ошибка лимита пробрасывается наверх
     const results = await search(query);
     allResults.push(...results);
     

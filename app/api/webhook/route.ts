@@ -9,7 +9,7 @@ import {
 } from '@/lib/telegram';
 import { parseInput } from '@/lib/parser';
 import { generateSearchQueries, analyzeSourcesWithAI } from '@/lib/ai';
-import { searchMultipleQueries } from '@/lib/search';
+import { searchMultipleQueries, SerpAPILimitError } from '@/lib/search';
 
 /** Лимит времени выполнения (сек). На Vercel Hobby макс 10, на Pro — до 300. Telegram ждёт ответ webhook до 60 сек. */
 export const maxDuration = 60;
@@ -131,7 +131,21 @@ async function processMessage(chatId: number, text: string): Promise<void> {
     await sendTypingAction(chatId);
 
     // 3. Ищем источники
-    const searchResults = await searchMultipleQueries(searchQueries);
+    let searchResults;
+    try {
+      searchResults = await searchMultipleQueries(searchQueries);
+    } catch (error) {
+      if (error instanceof SerpAPILimitError) {
+        await sendMessage(
+          chatId,
+          '⚠️ <b>Лимит поиска исчерпан!</b>\n\n' +
+          '🔒 Бесплатные запросы SerpAPI в этом месяце закончились (250 запросов/месяц).\n\n' +
+          '💡 Лимит обновится в начале следующего месяца.'
+        );
+        return;
+      }
+      throw error;
+    }
     console.log('[Webhook] Найдено результатов:', searchResults.length);
 
     if (searchResults.length === 0) {
