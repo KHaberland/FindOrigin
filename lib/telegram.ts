@@ -120,11 +120,11 @@ export function extractCommand(text: string): string | null {
 /**
  * Устанавливает кнопку меню бота (Menu Button) — открывает Mini App по URL.
  * @param webAppUrl — полный URL мини-приложения (например https://find-origin-plum.vercel.app/tma)
- * @param buttonText — текст на кнопке (по умолчанию «Проверить источник»)
+ * @param buttonText — текст на кнопке (по умолчанию «Открыть»)
  */
 export async function setChatMenuButton(
   webAppUrl: string,
-  buttonText: string = 'Проверить источник'
+  buttonText: string = 'Открыть'
 ): Promise<{ ok: boolean; error?: string }> {
   const token = getBotToken();
   const url = `${TELEGRAM_API}${token}/setChatMenuButton`;
