@@ -68,6 +68,22 @@
 - [x] Логирование для отладки
 - [ ] Оптимизация времени ответа
 
+## Этап 10: Telegram Mini App (TMA)
+
+Разбивка на простые шаги:
+
+- [x] **10.1** Вынести пайплайн анализа в `lib/analysisPipeline.ts`
+- [x] **10.2** Валидация initData: создать `lib/telegramWebApp.ts` (validate + getUserId)
+- [x] **10.3** API POST `/api/tma/analyze`: проверка initData, вызов `runAnalysis`, JSON-ответ
+- [x] **10.4** Layout для TMA: `app/tma/layout.tsx` (viewport, тема под Telegram, без лишнего UI)
+- [x] **10.5** Страница TMA: `app/tma/page.tsx` — форма (textarea + кнопка «Проверить»)
+- [x] **10.6** На странице: при отправке вызывать `/api/tma/analyze` с `text` и `initData` из `Telegram.WebApp.initData`
+- [x] **10.7** На странице: показывать загрузку (спиннер/сообщение) пока ждём ответ API
+- [x] **10.8** На странице: отображать результат — уверенность, объяснение, список источников (ссылки)
+- [x] **10.9** На странице: показывать ошибки (короткий текст, лимит, нет источников и т.д.)
+- [x] **10.10** В боте: установить Menu Button или команду с ссылкой на TMA (URL мини-приложения)
+- [ ] **10.11** В README: описать, как открыть TMA и какие env нужны
+
 ---
 
 ## Структура проекта
@@ -76,12 +92,20 @@
 FindOrigin/
 ├── app/
 │   ├── api/
-│   │   └── webhook/
-│   │       └── route.ts        # Telegram webhook handler
+│   │   ├── webhook/
+│   │   │   └── route.ts        # Telegram webhook handler
+│   │   └── tma/
+│   │       └── analyze/
+│   │           └── route.ts    # POST /api/tma/analyze для Mini App
+│   ├── tma/
+│   │   ├── layout.tsx          # layout для Mini App (viewport, тема)
+│   │   └── page.tsx            # UI: форма, результат, ошибки
 │   ├── layout.tsx
 │   └── page.tsx
 ├── lib/
 │   ├── telegram.ts             # Telegram API утилиты
+│   ├── telegramWebApp.ts       # Валидация initData Mini App
+│   ├── analysisPipeline.ts    # Пайплайн: парсинг → поиск → AI-анализ
 │   ├── parser.ts               # Парсинг текста и ссылок
 │   ├── search.ts               # Google Search API
 │   └── ai.ts                   # OpenAI GPT-4o-mini

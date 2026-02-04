@@ -12,6 +12,9 @@ npm test
 
 ## Деплой на Vercel
 
+Мини-приложение (Telegram Mini App) в этом проекте доступно по пути **`/tma`**.  
+После деплоя главная страница бота: `https://<ваш-проект>.vercel.app`, мини-приложение: **`https://<ваш-проект>.vercel.app/tma`**.
+
 ### Переменные окружения (Environment Variables)
 
 | Переменная | Обязательно | Описание |
@@ -33,3 +36,14 @@ npm test
 После деплоя в логах Vercel (Functions → выберите функцию → Logs) будут сообщения вида `[Search] Google: ...` или `[Webhook] Найдено результатов: N` — по ним можно понять, сработал ли поиск.
 
 - В проекте задан `NODE_OPTIONS=--no-deprecation` в `vercel.json`, чтобы убрать предупреждение `url.parse` в логах.
+
+### Мини-приложение (/tma)
+
+После первого деплоя включите кнопку меню в Telegram (открывает **/tma**):
+
+```powershell
+# Подставьте свой домен Vercel
+Invoke-RestMethod -Uri "https://<ваш-проект>.vercel.app/api/tma/setup-menu-button"
+```
+
+Опционально: переменная `APP_URL` (полный URL приложения, например `https://find-origin-plum.vercel.app`) — если не задана, используется домен Vercel. Для защиты эндпоинта настройки можно задать `SETUP_SECRET` и вызывать: `.../api/tma/setup-menu-button?secret=ваш_секрет`.

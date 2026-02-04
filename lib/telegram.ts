@@ -116,3 +116,38 @@ export function extractCommand(text: string): string | null {
   const match = text.match(/^\/(\w+)/);
   return match ? match[1] : null;
 }
+
+/**
+ * Устанавливает кнопку меню бота (Menu Button) — открывает Mini App по URL.
+ * @param webAppUrl — полный URL мини-приложения (например https://find-origin-plum.vercel.app/tma)
+ * @param buttonText — текст на кнопке (по умолчанию «Проверить источник»)
+ */
+export async function setChatMenuButton(
+  webAppUrl: string,
+  buttonText: string = 'Проверить источник'
+): Promise<{ ok: boolean; error?: string }> {
+  const token = getBotToken();
+  const url = `${TELEGRAM_API}${token}/setChatMenuButton`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        menu_button: {
+          type: 'web_app',
+          text: buttonText,
+          web_app: { url: webAppUrl },
+        },
+      }),
+    });
+    const result = await response.json();
+    if (!result.ok) {
+      return { ok: false, error: result.description ?? 'Unknown error' };
+    }
+    return { ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error';
+    return { ok: false, error: message };
+  }
+}
