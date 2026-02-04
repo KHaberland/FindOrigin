@@ -30,7 +30,6 @@ export default function TmaLayout({
         className="tma-root"
         style={{
           margin: 0,
-          minHeight: '100dvh',
           minHeight: '100vh',
           padding: 'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)',
           boxSizing: 'border-box',
